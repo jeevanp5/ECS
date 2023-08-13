@@ -1,0 +1,20 @@
+
+  # Syntax to Create a Cluster
+  aws ecs create-cluster --cluster-name fargate-cluster
+
+  mkdir  tasks
+  cd tasks
+
+  # create a Configuration file for task definitions
+  vi fargate-task.json
+
+   # Run the task defination configuration file
+   aws ecs register-task-definition --cli-input-json file://fargate-task.json
+   aws ecs list-task-definitions
+
+   #Create a Service in with private Subnet
+   aws ecs create-service --cluster fargate-cluster --service-name fargate-service --task-definition sample-fargate:7 --desired-count 1 --launch-type "FARGATE" --network-configuration "awsvpcConfiguration={subnets=[repalce],securityGroups=[Repalce]}" --enable-execute-command
+   #  #Create a Service in with public Subnet
+   aws ecs create-service --cluster fargate-cluster --service-name fargate-service1 --task-definition sample-fargate:7 --desired-count 1 --launch-type "FARGATE" --network-configuration "awsvpcConfiguration={subnets=[Repalce],securityGroups=[Repalce],assignPublicIp=ENABLED}"
+
+   # Take the public ip address and put in the browser
