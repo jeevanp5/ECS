@@ -1,0 +1,178 @@
+aws elbv2 create-load-balancer \
+     --name bluegreen-alb \
+     --subnets subnet-00658fdf8d58b72a8 subnet-0ed5c0bc51b2206d6 \
+     --security-groups sg-0a1e5510b3bf86c9b \
+     --region us-east-1
+
+The output includes the Amazon Resource Name (ARN) of the load balancer, with the following format:
+
+arn:aws:elasticloadbalancing:us-east-1:086908809963:loadbalancer/app/bluegreen-alb/da920e39a83abfc2
+
+
+aws elbv2 create-target-group \
+     --name bluegreentarget1 \
+     --protocol HTTP \
+     --port 80 \
+     --target-type ip \
+     --vpc-id vpc-0a9251427462a279d \
+     --region us-east-1
+
+The output includes the ARN of the target group, with the following format:
+arn:aws:elasticloadbalancing:us-east-1:086908809963:targetgroup/bluegreentarget1/4c515a9b71c0c506
+
+
+
+
+
+aws elbv2 create-listener \
+     --load-balancer-arn arn:aws:elasticloadbalancing:us-east-1:086908809963:loadbalancer/app/bluegreen-alb/da920e39a83abfc2 \
+     --protocol HTTP \
+     --port 80 \
+     --default-actions Type=forward,TargetGroupArn=arn:aws:elasticloadbalancing:us-east-1:086908809963:targetgroup/bluegreentarget1/4c515a9b71c0c506 \
+     --region us-east-1
+
+The output includes the ARN of the listener, with the following format:
+arn:aws:elasticloadbalancing:us-east-1:086908809963:listener/app/bluegreen-alb/da920e39a83abfc2/380e2374811ca7d5
+
+
+Step 2: Create an Amazon ECS cluster
+
+Use the create-cluster command to create a cluster named tutorial-bluegreen-cluster to use.
+
+aws ecs create-cluster \
+     --cluster-name tutorial-bluegreen-cluster \
+     --region us-east-1
+
+
+The output includes the ARN of the cluster, with the following format:
+arn:aws:ecs:us-east-1:086908809963:cluster/tutorial-bluegreen-cluster
+
+
+
+Step 3: Register a task definition
+nano fargate-task.json
+
+Then register the task definition using the fargate-task.json file that you created.
+
+aws ecs register-task-definition \
+     --cli-input-json file://fargate-task.json \
+     --region us-east-1
+
+
+
+Step 4: Create an Amazon ECS service
+
+after editing in shell
+
+and updating subnets,sg,arn
+
+
+
+Then create your service using the service-bluegreen.json file that you created.
+
+aws ecs create-service \
+     --cli-input-json file://service-bluegreen.json \
+     --region us-east-1
+
+
+The output includes the ARN of the service, with the following format:
+arn:aws:ecs:us-east-1:086908809963:service/tutorial-bluegreen-cluster/service-bluegreen-levelup
+
+Obtain the DNS name of the load balancer using the following command.
+ aws elbv2 describe-load-balancers --name bluegreen-alb  --query 'LoadBalancers[*].DNSName' 
+
+
+hit the dns 
+
+
+Step 5: Create the AWS CodeDeploy resources
+
+aws deploy create-application \
+     --application-name tutorial-bluegreen-app \
+     --compute-platform ECS \
+     --region us-east-1
+
+Use the create-target-group command to create a second Application Load Balancer target group, which will be used when creating your CodeDeploy deployment group.
+aws elbv2 create-target-group \
+     --name bluegreentarget2 \
+     --protocol HTTP \
+     --port 80 \
+     --target-type ip \
+     --vpc-id "vpc-0a9251427462a279d" \
+     --region us-east-1
+
+
+The output includes the ARN for the target group, with the following format:
+arn:aws:elasticloadbalancing:us-east-1:086908809963:targetgroup/bluegreentarget2/34ecaabeab8e1c02
+
+
+
+
+after updating the file tutorial-deployment-group.json with role and listerner
+
+
+Then create the CodeDeploy deployment group.
+aws deploy create-deployment-group \
+     --cli-input-json file://tutorial-deployment-group.json \
+     --region us-east-1
+
+deploymentGroupId": "9987643f-d714-4f6f-9ca8-71e5c31e312d
+
+
+Step 6: Create and monitor a CodeDeploy deployment
+
+
+
+Register the updated task definition using the following command.
+aws ecs register-task-definition \
+     --cli-input-json file://fargate-task.json \
+     --region us-east-1
+
+
+arn:aws:ecs:us-east-1:086908809963:task-definition/tutorial-task-def:7
+
+
+Use the s3 mb command to create an Amazon S3 bucket for the AppSpec file
+
+aws s3 mb s3://tutorial-bluegreen-bucket-levelup
+
+use the s3 cp command to upload the AppSpec file to the Amazon S3 bucket.
+aws s3 cp ./appspec.yaml s3://tutorial-bluegreen-bucket-levelup/appspec.yaml
+
+
+Create the CodeDeploy deployment using the following steps.
+
+Create a file named create-deployment.json with the contents of the CodeDeploy deployment. This example uses the resources that you created earlier in the tutorial.
+
+
+{
+    "applicationName": "tutorial-bluegreen-app",
+    "deploymentGroupName": "tutorial-bluegreen-dg",
+    "revision": {
+        "revisionType": "S3",
+        "s3Location": {
+            "bucket": "tutorial-bluegreen-bucket-levelup",
+            "key": "appspec.yaml",
+            "bundleType": "YAML"
+        }
+    }
+}
+
+
+
+
+aws deploy create-deployment \
+     --cli-input-json file://create-deployment.json \
+     --region us-east-1
+
+
+The output includes the deployment ID, with the following format:
+	d-PB0TWOY21
+
+
+
+Use the get-deployment-target command to get the details of the deployment, specifying the deploymentId from the previous output.
+aws deploy get-deployment-target \
+--deployment-id "d-PB0TWOY21" \
+--target-id tutorial-bluegreen-cluster:service-bluegreen-levelup \
+--region us-east-1
